@@ -9,24 +9,25 @@ import (
 )
 
 type Server struct {
-	ID                 string   `json:"id"`
-	Name               string   `json:"name"`
-	Type               string   `json:"type"`
-	Address            string   `json:"address"`
-	Port               int      `json:"port"`
-	BuildVersion       string   `json:"buildVersion"`
-	Environments       []string `json:"environments"`
-	CurrentEnvironment string   `json:"currentEnvironment"`
-	// Campos alternativos em versões mais antigas da extensão
-	SmartClientPath string `json:"smartClientPath"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Type         string   `json:"type"`
+	Address      string   `json:"address"`
+	Port         int      `json:"port"`
+	BuildVersion string   `json:"buildVersion"`
+	Environments []string `json:"environments"`
+	// v2.x usa "environment", v1.x usa "currentEnvironment"
+	Environment        string `json:"environment"`
+	CurrentEnvironment string `json:"currentEnvironment"`
 }
 
 type ServersConfig struct {
 	Includes        []string `json:"includes"`
 	ConnectedServer *Server  `json:"connectedServer"`
-	Servers         []Server `json:"servers"`
-	// Campo presente em algumas versões
-	LastConnectedServer string `json:"lastConnectedServer"`
+	// v2.x usa "configurations", v1.x usa "servers"
+	Configurations      []Server `json:"configurations"`
+	Servers             []Server `json:"servers"`
+	LastConnectedServer string   `json:"lastConnectedServer"`
 }
 
 func LoadServersConfig() (*ServersConfig, error) {
@@ -69,28 +70,37 @@ func LoadServersConfig() (*ServersConfig, error) {
 func ActiveServer(config *ServersConfig) (*Server, error) {
 	// Prioridade 1: servidor conectado no momento
 	if config.ConnectedServer != nil && config.ConnectedServer.Address != "" {
+		normalizeServer(config.ConnectedServer)
 		return config.ConnectedServer, nil
 	}
 
+	// Unifica lista de servidores (v2.x = configurations, v1.x = servers)
+	allServers := append(config.Configurations, config.Servers...)
+
 	// Prioridade 2: servidor com ambiente selecionado
-	for i, s := range config.Servers {
-		if s.CurrentEnvironment != "" {
-			return &config.Servers[i], nil
+	for i := range allServers {
+		normalizeServer(&allServers[i])
+		if allServers[i].CurrentEnvironment != "" {
+			return &allServers[i], nil
 		}
 	}
 
-	// Prioridade 3: primeiro servidor da lista (fallback)
-	if len(config.Servers) > 0 {
-		s := &config.Servers[0]
-		if s.Address != "" {
-			return s, nil
-		}
+	// Prioridade 3: primeiro servidor da lista
+	if len(allServers) > 0 && allServers[0].Address != "" {
+		return &allServers[0], nil
 	}
 
 	return nil, fmt.Errorf(
 		"nenhum servidor ativo encontrado.\n" +
 			"Abra o VS Code, conecte-se a um servidor na extensão TOTVS e tente novamente.",
 	)
+}
+
+// normalizeServer garante que CurrentEnvironment esteja preenchido (compatibilidade v1/v2)
+func normalizeServer(s *Server) {
+	if s.CurrentEnvironment == "" && s.Environment != "" {
+		s.CurrentEnvironment = s.Environment
+	}
 }
 
 func serversJSONPath() (string, error) {

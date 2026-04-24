@@ -45,7 +45,7 @@ func createPackagesFile(dir string) error {
 		return nil
 	}
 
-	content := "source 'https://cdn.jsdelivr.net/gh/oleonardomedeiros/tpm-registry@main'\n\n# Dependências do projeto\n# package 'api-financeiro', '1.2.0'\n# package 'lib-fiscal', '^2.0.0'\n"
+	content := "source 'https://cdn.jsdelivr.net/gh/oleonardomedeiros/tpm-registry@master'\n\n# Dependências do projeto\n# package 'api-financeiro', '1.2.0'\n# package 'lib-fiscal', '^2.0.0'\n"
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		return fmt.Errorf("erro ao criar arquivo packages: %w", err)
 	}
