@@ -6,18 +6,22 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/oleonardomedeiros/tpm/internal/lockfile"
 	"github.com/oleonardomedeiros/tpm/internal/parser"
 	"github.com/oleonardomedeiros/tpm/internal/registry"
 	"github.com/oleonardomedeiros/tpm/internal/tds"
 	"github.com/oleonardomedeiros/tpm/internal/vscode"
+	"github.com/spf13/cobra"
 )
 
 var installCmd = &cobra.Command{
-	Use:   "install",
-	Short: "Instala as dependências declaradas no arquivo packages",
-	RunE:  runInstall,
+	Use:   "install [pacote] [versão]",
+	Short: "Instala dependências. Sem argumentos instala tudo do arquivo packages",
+	Example: `  tpm install                        # instala todas as dependências
+  tpm install api-financeiro          # instala a versão mais recente
+  tpm install api-financeiro 1.2.0    # instala versão específica`,
+	Args: cobra.MaximumNArgs(2),
+	RunE: runInstall,
 }
 
 func init() {
@@ -30,14 +34,10 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	pkgFile, err := parser.ParsePackagesFile(filepath.Join(cwd, "packages"))
+	pkgFilePath := filepath.Join(cwd, "packages")
+	pkgFile, err := parser.ParsePackagesFile(pkgFilePath)
 	if err != nil {
 		return err
-	}
-
-	if len(pkgFile.Dependencies) == 0 {
-		fmt.Println("Nenhuma dependência declarada no arquivo packages.")
-		return nil
 	}
 
 	vsConfig, err := vscode.LoadServersConfig()
@@ -65,18 +65,96 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	fmt.Println("ok")
-
-	locked, err := lockfile.Read(cwd)
-	if err != nil {
-		return err
-	}
+	fmt.Println()
 
 	libDir := filepath.Join(cwd, "lib", "packages")
 	if err := os.MkdirAll(libDir, 0755); err != nil {
 		return err
 	}
 
-	// Resolve e baixa dependências novas ou desatualizadas
+	// tpm install <nome> [versão] — adiciona ao packages e instala
+	if len(args) > 0 {
+		return installSingle(cwd, pkgFilePath, pkgFile, regClient, index, tdsClient, libDir, args)
+	}
+
+	// tpm install — instala tudo do packages file
+	return installAll(cwd, pkgFile, regClient, index, tdsClient, libDir)
+}
+
+func installSingle(cwd, pkgFilePath string, pkgFile *parser.PackagesFile, regClient *registry.Client, index *registry.Index, tdsClient *tds.Client, libDir string, args []string) error {
+	name := args[0]
+	version := "latest"
+	if len(args) == 2 {
+		version = args[1]
+	}
+
+	resolved, err := regClient.ResolveVersion(index, name, version)
+	if err != nil {
+		return err
+	}
+
+	// Adiciona ao arquivo packages se ainda não estiver
+	alreadyDeclared := false
+	for _, dep := range pkgFile.Dependencies {
+		if dep.Name == name {
+			alreadyDeclared = true
+			break
+		}
+	}
+
+	if !alreadyDeclared {
+		line := fmt.Sprintf("\npackage '%s', '%s'\n", name, resolved)
+		f, err := os.OpenFile(pkgFilePath, os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			return fmt.Errorf("erro ao atualizar arquivo packages: %w", err)
+		}
+		defer f.Close()
+		if _, err := f.WriteString(line); err != nil {
+			return fmt.Errorf("erro ao escrever no arquivo packages: %w", err)
+		}
+		fmt.Printf("adicionado ao packages: %s %s\n\n", name, resolved)
+	}
+
+	fmt.Printf("  ↓ %s %s... ", name, resolved)
+	if _, err := regClient.Download(name, resolved, libDir); err != nil {
+		fmt.Println("erro")
+		return err
+	}
+	fmt.Println("ok")
+
+	fmt.Printf("  ⚙ compilando... ")
+	if err := tdsClient.Compile(filepath.Join(libDir, name+".tlpp"), false); err != nil {
+		fmt.Println("erro")
+		return err
+	}
+	fmt.Println("ok")
+
+	// Atualiza lock
+	locked, _ := lockfile.Read(cwd)
+	locked[name] = resolved
+	var deps []lockfile.LockedDep
+	for k, v := range locked {
+		deps = append(deps, lockfile.LockedDep{Name: k, Version: v})
+	}
+	if err := lockfile.Write(cwd, deps); err != nil {
+		return err
+	}
+
+	fmt.Printf("\n✓ %s %s instalado.\n", name, resolved)
+	return nil
+}
+
+func installAll(cwd string, pkgFile *parser.PackagesFile, regClient *registry.Client, index *registry.Index, tdsClient *tds.Client, libDir string) error {
+	if len(pkgFile.Dependencies) == 0 {
+		fmt.Println("Nenhuma dependência declarada no arquivo packages.")
+		return nil
+	}
+
+	locked, err := lockfile.Read(cwd)
+	if err != nil {
+		return err
+	}
+
 	var resolvedDeps []lockfile.LockedDep
 	declaredNames := make(map[string]bool)
 
@@ -90,11 +168,9 @@ func runInstall(cmd *cobra.Command, args []string) error {
 
 		resolvedDeps = append(resolvedDeps, lockfile.LockedDep{Name: dep.Name, Version: resolved})
 
-		if locked[dep.Name] == resolved {
-			if fileExists(filepath.Join(libDir, dep.Name+".tlpp")) {
-				fmt.Printf("  ✓ %s %s (já instalado)\n", dep.Name, resolved)
-				continue
-			}
+		if locked[dep.Name] == resolved && fileExists(filepath.Join(libDir, dep.Name+".tlpp")) {
+			fmt.Printf("  ✓ %s %s (já instalado)\n", dep.Name, resolved)
+			continue
 		}
 
 		fmt.Printf("  ↓ %s %s... ", dep.Name, resolved)
@@ -105,7 +181,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		fmt.Println("ok")
 	}
 
-	// Identifica e remove órfãos
+	// Remove órfãos
 	orphans, err := findOrphans(libDir, declaredNames)
 	if err != nil {
 		return err
@@ -115,22 +191,19 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		fmt.Println("Removendo dependências não declaradas:")
 		for _, orphan := range orphans {
-			fmt.Printf("  ✗ %s\n", filepath.Base(orphan))
-
-			fmt.Printf("    descompilando... ")
+			fmt.Printf("  ✗ %s... ", filepath.Base(orphan))
 			if err := tdsClient.Delete(orphan); err != nil {
 				fmt.Println("erro")
 				return err
 			}
-			fmt.Println("ok")
-
 			if err := os.Remove(orphan); err != nil {
 				return fmt.Errorf("erro ao deletar %s: %w", orphan, err)
 			}
+			fmt.Println("ok")
 		}
 	}
 
-	// Compila tudo que está em lib/packages/
+	// Compila tudo
 	fmt.Println()
 	fmt.Println("Compilando dependências:")
 	files, err := filepath.Glob(filepath.Join(libDir, "*.tlpp"))
@@ -147,13 +220,11 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		fmt.Println("ok")
 	}
 
-	// Salva o lock file
 	if err := lockfile.Write(cwd, resolvedDeps); err != nil {
 		return err
 	}
 
-	fmt.Println()
-	fmt.Printf("✓ %d dependência(s) instalada(s). libs.lock atualizado.\n", len(resolvedDeps))
+	fmt.Printf("\n✓ %d dependência(s) instalada(s). libs.lock atualizado.\n", len(resolvedDeps))
 	return nil
 }
 
