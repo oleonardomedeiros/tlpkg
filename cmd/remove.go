@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/oleonardomedeiros/tpm/internal/lockfile"
-	"github.com/oleonardomedeiros/tpm/internal/parser"
-	"github.com/oleonardomedeiros/tpm/internal/tds"
-	"github.com/oleonardomedeiros/tpm/internal/vscode"
+	"github.com/oleonardomedeiros/tlpkg/internal/lockfile"
+	"github.com/oleonardomedeiros/tlpkg/internal/parser"
+	"github.com/oleonardomedeiros/tlpkg/internal/tds"
+	"github.com/oleonardomedeiros/tlpkg/internal/vscode"
 	"github.com/spf13/cobra"
 )
 

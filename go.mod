@@ -1,4 +1,4 @@
-module github.com/oleonardomedeiros/tpm
+module github.com/oleonardomedeiros/tlpkg
 
 go 1.22
 

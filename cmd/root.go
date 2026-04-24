@@ -7,8 +7,8 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "tpm",
-	Short: "TOTVS Package Manager",
+	Use:   "tlpkg",
+	Short: "TOTVS TLPP Package Manager",
 	Long:  "Gerenciador de dependências de fontes .tlpp/.prw para o ecossistema TOTVS Protheus.",
 }
 

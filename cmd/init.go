@@ -31,7 +31,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Println("Projeto TPM inicializado.")
 	fmt.Println()
 	fmt.Println("  packages       ← declare suas dependências aqui")
-	fmt.Println("  libs.lock      ← gerado automaticamente pelo tpm install")
+	fmt.Println("  libs.lock      ← gerado automaticamente pelo tlpkg install")
 	fmt.Println("  lib/packages/  ← arquivos .tlpp baixados")
 
 	return nil

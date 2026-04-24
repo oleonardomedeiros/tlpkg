@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/oleonardomedeiros/tpm/internal/tds"
-	"github.com/oleonardomedeiros/tpm/internal/vscode"
+	"github.com/oleonardomedeiros/tlpkg/internal/tds"
+	"github.com/oleonardomedeiros/tlpkg/internal/vscode"
 )
 
 var compileCmd = &cobra.Command{

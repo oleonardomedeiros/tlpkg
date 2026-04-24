@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/oleonardomedeiros/tpm/internal/vscode"
+	"github.com/oleonardomedeiros/tlpkg/internal/vscode"
 )
 
 type Client struct {
-	server   *vscode.Server
-	includes []string
+	server     *vscode.Server
+	includes   []string
 	advplsPath string
 }
 
@@ -54,13 +54,16 @@ func (c *Client) Delete(filePath string) error {
 func (c *Client) runTDSCli(action, filePath string, recompile bool) error {
 	args := []string{
 		action,
-		fmt.Sprintf("serverType=AdvPL"),
+		"serverType=AdvPL",
 		fmt.Sprintf("server=%s", c.server.Address),
 		fmt.Sprintf("port=%d", c.server.Port),
 		fmt.Sprintf("build=%s", c.server.BuildVersion),
 		fmt.Sprintf("environment=%s", c.server.CurrentEnvironment),
-		fmt.Sprintf("includes=%s", strings.Join(c.includes, ";")),
 		fmt.Sprintf("program=%s", filePath),
+	}
+
+	if len(c.includes) > 0 {
+		args = append(args, fmt.Sprintf("includes=%s", strings.Join(c.includes, ";")))
 	}
 
 	if action == "compile" {
@@ -83,14 +86,6 @@ func (c *Client) runTDSCli(action, filePath string, recompile bool) error {
 }
 
 func findAdvpls() (string, error) {
-	// Procura advpls.exe dentro das extensões do VS Code
-	appData := os.Getenv("APPDATA")
-	if appData == "" {
-		home, _ := os.UserHomeDir()
-		appData = filepath.Join(home, "AppData", "Roaming")
-	}
-
-	// Substituindo APPDATA por USERPROFILE para extensões do VS Code
 	userProfile := os.Getenv("USERPROFILE")
 	if userProfile == "" {
 		var err error
@@ -100,12 +95,28 @@ func findAdvpls() (string, error) {
 		}
 	}
 
-	pattern := filepath.Join(userProfile, ".vscode", "extensions", "totvs.tds-vscode-*", "node_modules", "@totvs", "tds-ls", "bin", "windows", "advpls.exe")
-	matches, err := filepath.Glob(pattern)
-	if err != nil || len(matches) == 0 {
-		return "", fmt.Errorf("advpls.exe não encontrado\ncertifique-se que a extensão TOTVS Developer Studio está instalada no VS Code")
+	// Padrões de caminho para diferentes versões e estruturas da extensão TOTVS
+	patterns := []string{
+		// Estrutura atual (tds-ls embutido na extensão)
+		filepath.Join(userProfile, ".vscode", "extensions", "totvs.tds-vscode-*", "node_modules", "@totvs", "tds-ls", "bin", "windows", "advpls.exe"),
+		// Estrutura alternativa (versões mais antigas)
+		filepath.Join(userProfile, ".vscode", "extensions", "totvs.tds-vscode-*", "node_modules", "@totvs", "tds-ls", "bin", "advpls.exe"),
+		// Instalação global do tds-ls via npm
+		filepath.Join(userProfile, "AppData", "Roaming", "npm", "node_modules", "@totvs", "tds-ls", "bin", "windows", "advpls.exe"),
 	}
 
-	// Usa a versão mais recente encontrada
-	return matches[len(matches)-1], nil
+	var tried []string
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(pattern)
+		if err == nil && len(matches) > 0 {
+			// Usa a versão mais recente encontrada
+			return matches[len(matches)-1], nil
+		}
+		tried = append(tried, pattern)
+	}
+
+	return "", fmt.Errorf(
+		"advpls.exe não encontrado. Verifique se a extensão 'TOTVS Developer Studio' está instalada no VS Code.\n\nCaminhos pesquisados:\n  - %s",
+		strings.Join(tried, "\n  - "),
+	)
 }
