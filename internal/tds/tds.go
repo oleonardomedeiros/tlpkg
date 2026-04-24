@@ -83,9 +83,10 @@ func (c *Client) Delete(filePath string) error {
 }
 
 func (c *Client) runTDSCli(action, filePath string, recompile bool) error {
-	args := []string{
-		"tds-cli",
-		"--tds-cli-arguments",
+	// All action params go into a single --tdsCliArguments=VALUE string,
+	// matching the invocation in the official TDScli.bat wrapper:
+	// advpls.exe tds-cli --tdsCliArguments="<action> <params...>"
+	cliParts := []string{
 		action,
 		"serverType=AdvPL",
 		fmt.Sprintf("server=%s", c.address),
@@ -96,7 +97,7 @@ func (c *Client) runTDSCli(action, filePath string, recompile bool) error {
 	}
 
 	if len(c.includes) > 0 {
-		args = append(args, fmt.Sprintf("includes=%s", strings.Join(c.includes, ";")))
+		cliParts = append(cliParts, fmt.Sprintf("includes=%s", strings.Join(c.includes, ";")))
 	}
 
 	if action == "compile" {
@@ -104,10 +105,10 @@ func (c *Client) runTDSCli(action, filePath string, recompile bool) error {
 		if recompile {
 			recompileVal = "t"
 		}
-		args = append(args, fmt.Sprintf("recompile=%s", recompileVal))
+		cliParts = append(cliParts, fmt.Sprintf("recompile=%s", recompileVal))
 	}
 
-	cmd := exec.Command(c.advplsPath, args...)
+	cmd := exec.Command(c.advplsPath, "tds-cli", fmt.Sprintf("--tdsCliArguments=%s", strings.Join(cliParts, " ")))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
