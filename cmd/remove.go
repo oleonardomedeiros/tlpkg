@@ -10,7 +10,6 @@ import (
 	"github.com/oleonardomedeiros/tlpkg/internal/lockfile"
 	"github.com/oleonardomedeiros/tlpkg/internal/parser"
 	"github.com/oleonardomedeiros/tlpkg/internal/tds"
-	"github.com/oleonardomedeiros/tlpkg/internal/vscode"
 	"github.com/spf13/cobra"
 )
 
@@ -51,12 +50,7 @@ func runRemove(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("pacote '%s' não encontrado no arquivo packages", name)
 	}
 
-	vsConfig, err := vscode.LoadServersConfig()
-	if err != nil {
-		return err
-	}
-
-	tdsClient, err := tds.NewClient(vsConfig)
+	tdsClient, err := tds.NewClient()
 	if err != nil {
 		return err
 	}

@@ -10,7 +10,6 @@ import (
 	"github.com/oleonardomedeiros/tlpkg/internal/parser"
 	"github.com/oleonardomedeiros/tlpkg/internal/registry"
 	"github.com/oleonardomedeiros/tlpkg/internal/tds"
-	"github.com/oleonardomedeiros/tlpkg/internal/vscode"
 	"github.com/spf13/cobra"
 )
 
@@ -40,12 +39,7 @@ func runInstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	vsConfig, err := vscode.LoadServersConfig()
-	if err != nil {
-		return err
-	}
-
-	tdsClient, err := tds.NewClient(vsConfig)
+	tdsClient, err := tds.NewClient()
 	if err != nil {
 		return err
 	}

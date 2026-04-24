@@ -6,9 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/oleonardomedeiros/tlpkg/internal/tds"
-	"github.com/oleonardomedeiros/tlpkg/internal/vscode"
+	"github.com/spf13/cobra"
 )
 
 var compileCmd = &cobra.Command{
@@ -33,7 +32,7 @@ var deleteCmd = &cobra.Command{
 }
 
 func runCompile(cmd *cobra.Command, args []string) error {
-	client, err := buildTDSClient()
+	client, err := tds.NewClient()
 	if err != nil {
 		return err
 	}
@@ -48,7 +47,7 @@ func runCompile(cmd *cobra.Command, args []string) error {
 }
 
 func runRecompile(cmd *cobra.Command, args []string) error {
-	client, err := buildTDSClient()
+	client, err := tds.NewClient()
 	if err != nil {
 		return err
 	}
@@ -63,7 +62,7 @@ func runRecompile(cmd *cobra.Command, args []string) error {
 }
 
 func runDelete(cmd *cobra.Command, args []string) error {
-	client, err := buildTDSClient()
+	client, err := tds.NewClient()
 	if err != nil {
 		return err
 	}
@@ -75,15 +74,6 @@ func runDelete(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Descompilando %s...\n", args[0])
 	return client.Delete(args[0])
-}
-
-func buildTDSClient() (*tds.Client, error) {
-	config, err := vscode.LoadServersConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	return tds.NewClient(config)
 }
 
 func confirmEnvironment(serverInfo string) bool {
