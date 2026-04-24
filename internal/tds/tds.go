@@ -3,11 +3,11 @@ package tds
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/oleonardomedeiros/tlpkg/internal/config"
+	"github.com/oleonardomedeiros/tlpkg/internal/lsp"
 	"github.com/oleonardomedeiros/tlpkg/internal/vscode"
 )
 
@@ -59,7 +59,6 @@ func NewClient() (*Client, error) {
 		}, nil
 	}
 
-	// Nenhuma fonte funcionou — orienta o usuário
 	return nil, fmt.Errorf(
 		"não foi possível detectar a configuração do AppServer.\n\n" +
 			"Opção 1 — Configure na extensão TOTVS do VS Code e certifique-se de estar conectado.\n" +
@@ -75,48 +74,39 @@ func (c *Client) ServerInfo() string {
 }
 
 func (c *Client) Compile(filePath string, recompile bool) error {
-	return c.runTDSCli("compile", filePath, recompile)
+	return c.runLSP(func(token string, lspClient *lsp.Client) error {
+		return lspClient.Compile(token, c.environment, []string{filePath}, c.includes, recompile)
+	})
 }
 
 func (c *Client) Delete(filePath string) error {
-	return c.runTDSCli("delete", filePath, false)
+	return c.runLSP(func(token string, lspClient *lsp.Client) error {
+		return lspClient.DeletePrograms(token, c.environment, []string{filePath})
+	})
 }
 
-func (c *Client) runTDSCli(action, filePath string, recompile bool) error {
-	// All action params go into a single --tdsCliArguments=VALUE string,
-	// matching the invocation in the official TDScli.bat wrapper:
-	// advpls.exe tds-cli --tdsCliArguments="<action> <params...>"
-	cliParts := []string{
-		action,
-		"serverType=AdvPL",
-		fmt.Sprintf("server=%s", c.address),
-		fmt.Sprintf("port=%d", c.port),
-		fmt.Sprintf("build=%s", c.build),
-		fmt.Sprintf("environment=%s", c.environment),
-		fmt.Sprintf("program=%s", filePath),
+func (c *Client) runLSP(fn func(token string, client *lsp.Client) error) error {
+	lspClient, err := lsp.NewClient(c.advplsPath)
+	if err != nil {
+		return err
+	}
+	defer lspClient.Close()
+
+	token, needAuth, err := lspClient.Connect(c.name, c.address, c.port, c.build, c.environment)
+	if err != nil {
+		return fmt.Errorf("erro ao conectar ao servidor: %w", err)
 	}
 
-	if len(c.includes) > 0 {
-		cliParts = append(cliParts, fmt.Sprintf("includes=%s", strings.Join(c.includes, ";")))
-	}
-
-	if action == "compile" {
-		recompileVal := "f"
-		if recompile {
-			recompileVal = "t"
+	if needAuth {
+		token, err = lspClient.Authenticate(token, c.environment, "", "")
+		if err != nil {
+			return fmt.Errorf("autenticação necessária — configure usuário/senha com 'tlpkg config': %w", err)
 		}
-		cliParts = append(cliParts, fmt.Sprintf("recompile=%s", recompileVal))
 	}
 
-	cmd := exec.Command(c.advplsPath, "tds-cli", fmt.Sprintf("--tdsCliArguments=%s", strings.Join(cliParts, " ")))
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	defer lspClient.Disconnect(token, c.name)
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("TDS-CLI retornou erro: %w", err)
-	}
-
-	return nil
+	return fn(token, lspClient)
 }
 
 func findAdvpls() (string, error) {
