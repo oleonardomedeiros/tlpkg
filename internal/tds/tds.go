@@ -85,6 +85,7 @@ func (c *Client) Delete(filePath string) error {
 func (c *Client) runTDSCli(action, filePath string, recompile bool) error {
 	args := []string{
 		"tds-cli",
+		"--tds-cli-arguments",
 		action,
 		"serverType=AdvPL",
 		fmt.Sprintf("server=%s", c.address),
