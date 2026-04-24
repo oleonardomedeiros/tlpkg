@@ -24,7 +24,6 @@ func Execute() {
 
 func init() {
 	rootCmd.SetVersionTemplate(fmt.Sprintf("tlpkg v%s\n", Version))
-	rootCmd.Flags().BoolP("version", "v", false, "Exibe a versão do tlpkg")
 
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(compileCmd)
