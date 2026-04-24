@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type Server struct {
@@ -93,14 +94,34 @@ func ActiveServer(config *ServersConfig) (*Server, error) {
 }
 
 func serversJSONPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("não foi possível localizar o diretório do usuário: %w", err)
+	}
+
 	appData := os.Getenv("APPDATA")
 	if appData == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("não foi possível localizar o diretório do usuário: %w", err)
-		}
 		appData = filepath.Join(home, "AppData", "Roaming")
 	}
 
-	return filepath.Join(appData, "Code", "User", "globalStorage", "totvs.tds-vscode", "servers.json"), nil
+	// Caminhos por versão da extensão TOTVS (do mais recente ao mais antigo)
+	candidates := []string{
+		filepath.Join(home, ".totvsls", "servers.json"),                                                          // v2.x
+		filepath.Join(appData, "Code", "User", "globalStorage", "totvs.tds-vscode", "servers.json"),             // v1.x
+		filepath.Join(appData, "Code - Insiders", "User", "globalStorage", "totvs.tds-vscode", "servers.json"),  // VS Code Insiders
+	}
+
+	for _, path := range candidates {
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+	}
+
+	return "", fmt.Errorf(
+		"arquivo servers.json não encontrado.\n\n"+
+			"Isso indica que a extensão 'TOTVS Developer Studio' não está configurada.\n"+
+			"Abra o VS Code, instale a extensão TOTVS e configure ao menos um servidor.\n\n"+
+			"Caminhos verificados:\n  - %s",
+		strings.Join(candidates, "\n  - "),
+	)
 }

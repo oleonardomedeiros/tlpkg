@@ -17,9 +17,9 @@ import (
 var installCmd = &cobra.Command{
 	Use:   "install [pacote] [versão]",
 	Short: "Instala dependências. Sem argumentos instala tudo do arquivo packages",
-	Example: `  tpm install                        # instala todas as dependências
-  tpm install api-financeiro          # instala a versão mais recente
-  tpm install api-financeiro 1.2.0    # instala versão específica`,
+	Example: `  tlpkg install                        # instala todas as dependências
+  tlpkg install api-financeiro          # instala a versão mais recente
+  tlpkg install api-financeiro 1.2.0    # instala versão específica`,
 	Args: cobra.MaximumNArgs(2),
 	RunE: runInstall,
 }
