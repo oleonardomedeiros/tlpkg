@@ -1,0 +1,16 @@
+# Binários
+tpm
+tpm.exe
+
+# Módulos Go (nunca commitar vendor)
+vendor/
+
+# Cobertura de testes
+*.out
+coverage.html
+
+# VS Code
+.vscode/
+
+# Windows
+Thumbs.db
